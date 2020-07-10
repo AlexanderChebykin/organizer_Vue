@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title></title>
+<script src="vue.js"></script>
+</head>
+
+<style type="text/css">
+			#parent {
+				text-align: center;
+			}
+			#calendar {
+				display: inline-block;
+			}
+			#calendar td, #calendar th {
+				padding: 5px 12px;
+				border: 1px solid black;
+				text-align: center;
+			}
+			
+			#calendar td:hover{
+				background-color: black;
+				color: white;
+			}
+			
+			#calendar td.active{
+				background-color: black;
+				color: white;
+			}
+			
+			.nav a{
+				text-decoration: none;
+			}
+			
+			a:hover{
+				color:red;
+			}
+			
+			#taskList {
+				
+				list-style-type: none;
+				font-size: 16px;
+				padding: 10px;
+				text-align: center;
+				
+			}
+
+			#taskList li{
+				border: 1px solid black;
+				padding: 10px;
+				width: 300px;
+				margin: 0 auto;
+			}
+			
+			span{
+				margin-right: 5px;
+			}
+			
+			span:hover{
+				text-decoration: underline;
+			}
+			
+			.remove, .mark{
+				cursor: pointer;
+			}
+			
+			.remove{
+				color: red;
+			}
+			
+			span.done{
+				text-decoration: line-through;
+			}
+		</style>
+	</head>
+	<body>
+	
+	<div id="parent">
+		<div id="calendar">
+			<div id = 'info'>{{info}}</div>
+			<table id = 'table' v-on:click='tableClickHandler($event)'>
+				<thead>
+					<tr>
+						<th>пн</th>
+						<th>вт</th>
+						<th>ср</th>
+						<th>чт</th>
+						<th>пт</th>
+						<th>сб</th>
+						<th>вс</th>
+					</tr>
+				</thead>
+				<tbody id = 'x' class="body"></tbody>
+				
+				
+				
+				<div class="nav">
+					<a href="#" class="prev" v-on:click='prevClickHandler($event)'>←</a>
+					<a href="#" class="next" v-on:click='nextClickHandler'>→</a>
+				</div>
+			</table>
+		</div>
+		<div id = 'organizer' >
+			<input type = 'text' id = 'newTask' placeholder = 'введите новую задачу'>
+			<button id = 'addNewTask' v-on:click='addNewTaskClickHandler'>Добавить</button>
+			<div id = 'taskList'>
+			
+			</div>
+		</div>
+	</div>
+
+<script>
+/*Реализуйте органайзер. Он будет представлять собой календарь. 
+По нажатию на любую дату с боку календаря должен появится список дел, 
+запланированных на эту дату. Дела можно добавлять, удалять, редактировать, помечать сделанными.
+*/
+
+let tasks = {};
+window.addEventListener('beforeunload', function() 
+						{
+							localStorage.setItem('organizer', JSON.stringify(tasks));
+						});
+						
+let app = new Vue({
+		el:'#parent',
+		data: { 
+			//tasks : {},
+			calendar : document.querySelector('#calendar'),
+
+			date  : '',
+			year  : '',
+			month : '',
+			
+			months : ['январь', 'февраль', 'март','апрель', 'май', 'июнь','июль', 'август', 'сентябрь',
+				'октябрь', 'ноябрь', 'екабрь'],
+				
+			info : '', 
+			
+			prev : calendar.querySelector('.prev'),
+			next : calendar.querySelector('.next'),
+			
+			month_displacement : 0,
+		},
+		
+		//beforeMount: Вызывается непосредственно перед началом монтажа:
+		//функция рендеринга будет вызвана в первый раз.
+		 beforeMount(){
+			this.getDate();
+			this.getTasks();
+			this.showInfo();
+		 },
+		 
+		 //вызывается после того, как экземпляр только что был установлен, 
+		 //где el заменяется вновь созданным vm.$el.
+		  mounted(){
+			this.draw(document.querySelector('.body'), this.year, this.month);
+		 },
+		methods: {
+			
+			getDate : function(){
+				this.date = new Date();
+				this.year  = this.date.getFullYear();
+				this.month = this.date.getMonth();
+
+			},
+			
+			getTasks : function(){
+				tasks = JSON.parse(localStorage.getItem('organizer'));
+			},
+			
+			showInfo(){
+				this.info = this.months[Number(this.month)] + " " + this.year;
+			},
+			
+			range : function (count) {
+					let arr = [];
+					for(let i = 1; i <= count; i++)
+					{
+						arr.push(i);
+					}
+					return arr;
+				},
+				
+			//функция, которая будет возвращать номер последнего дня месяца:
+			getLastDay : function (year, month) {
+					let lastDay = (new Date(year, month + 1, 0)).getDate();
+					return lastDay;
+				},
+	
+			//сделаем функцию, которая будет получать номер для недели первого дня месяца:
+			getFirstWeekDay : function (year, month) {
+				let firstWeekDay = (new Date(year, month, 1)).getDay();
+				if(firstWeekDay == 0)
+					return 6;
+				else
+					return firstWeekDay - 1;
+			},
+			//И аналогичную функцию для последнего дня месяца:
+			getLastWeekDay : function (year, month) {
+				let lastWeekDay = (new Date(year, month, this.getLastDay(year, month))).getDay();
+				if(lastWeekDay == 0)
+					return 6;
+				else
+				return lastWeekDay - 1;
+			},
+			
+			//функция normalize, первым параметром принимающая массив, вторым - сколько
+			//пустых строк добавить слева, а третьим - сколько пустых строк справа:
+			normalize : function (arr, left, right) {
+				let res = arr;
+				for(let i = 0; i < left; i++)
+				{
+					res.unshift('');
+				}
+				for(let j = 0; j < right; j++)
+				{
+					res.push('');
+				}
+				return res;
+			},
+			
+			chunk : function (arr, n) {
+				// n - количество элементов в подмассиве
+				let res = [];
+				let k = 0;
+				for(let i = 0; i < Math.ceil(arr.length/n); i++)
+				{
+					for(let j = 0; j < n; j++)
+					{
+						res.push(arr.splice(i*n,n));
+						k++;
+					}
+				}
+				return res;
+			},
+
+			//сделаем функцию createTable, первым параметром принимающую ссылку на родительский элемент 
+			//чисел календаря (в нашем случае это будет tbody), а вторым - двухмерный массив:
+			createTable : function (parent, arr) {
+				parent.innerHTML = '';
+				let tds = [];
+				for(let subArr of arr)
+				{
+					let tr = document.createElement('tr');
+					for(let elem of subArr)
+					{
+						let td = document.createElement('td');
+						td.innerHTML = elem;
+						tds.push(td);
+						tr.appendChild(td);
+					}
+					parent.appendChild(tr);
+				}
+			},
+
+			//Обернем код формирования календаря в функцию:
+			draw : function (tbody, year, month)
+			{
+				let arr = this.range(this.getLastDay(year, month));
+				let firstWeekDay = this.getFirstWeekDay(year, month);
+				let lastWeekDay = this.getLastWeekDay(year, month);
+				let res = this.chunk(this.normalize(arr, firstWeekDay, 6 - lastWeekDay), 7);
+				this.createTable(tbody, res);
+				
+			},
+
+			createTask : function (taskNum, t, taskList)
+			{
+				
+				let li = document.createElement('li');
+					let activeTd = document.querySelector('#calendar td.active');
+					let task = document.createElement('span');
+					task.innerHTML = t;
+					task.classList.add(tasks[activeTd.dataset.key][taskNum][1]);
+					task.addEventListener('dblclick', function callback() {
+						
+						let editInput = document.createElement('input');
+						editInput.value = task.innerHTML ;
+						
+						editInput.addEventListener('blur', function(){task.innerHTML = editInput.value;
+																	task.addEventListener('dblclick', callback)});
+						task.innerHTML = '';
+						task.appendChild(editInput);
+						task.removeEventListener('dblclick', callback);
+					});
+					task.classList.add('task');
+					
+					let mark = document.createElement('span');
+					mark.innerHTML = 'сделано';
+					mark.addEventListener('click', () => { 
+															mark.previousElementSibling.classList.toggle('done');
+															
+															if(mark.previousElementSibling.classList.contains('done'))
+																tasks[activeTd.dataset.key][taskNum][1] = 'done';
+															else
+																tasks[activeTd.dataset.key][taskNum][1] = 'notdone';
+															console.log(tasks);
+															});
+					mark.classList.add('mark');
+					
+					let remove = document.createElement('span');
+					remove.innerHTML = 'удалить';
+					remove.addEventListener('click', () => { 
+															delete tasks[activeTd.dataset.key][taskNum];
+															remove.parentElement.remove(li); 
+															});
+					remove.classList.add('remove');
+					
+					li.appendChild(task);
+					li.appendChild(mark);
+					li.appendChild(remove);
+					taskList.appendChild(li);
+			},
+					
+			fillTaskList : function(target)
+			{
+				for(let taskNum in tasks[target.dataset.key])
+				{
+					let task = tasks[target.dataset.key][taskNum][0];
+					this.createTask(taskNum, task, taskList);
+				}
+			},
+
+			prevClickHandler: function(event){	
+										event.preventDefault();
+										this.month_displacement--;
+										taskList.innerHTML = '';
+										console.log(this.month_displacement);
+										this.draw(document.querySelector('#x'), this.year, this.month + this.month_displacement);
+										let current = new Date(this.year, this.month + this.month_displacement);
+										this.info = this.months[current.getMonth()] + " " + current.getFullYear();
+										},	
+										
+			nextClickHandler: function() {this.month_displacement++;
+										taskList.innerHTML = '';
+										this.draw(document.querySelector('#x'), this.year, this.month + this.month_displacement);
+										let current = new Date(this.year, this.month + this.month_displacement);
+										this.info = this.months[current.getMonth()] + " " + current.getFullYear();
+										},
+
+			tableClickHandler: function(event){
+											let activeTd = document.querySelector('#calendar td.active');
+											if(activeTd)
+											{
+												activeTd.classList.remove('active');
+											}
+											let target = event.target;
+											target.classList.add('active');
+											target.dataset.key = target.innerHTML + " " + info.innerHTML;
+											
+											taskList.innerHTML = '';
+											if(tasks[target.dataset.key])
+											{
+												this.fillTaskList(target);
+											}
+											else
+											{
+												taskList.innerHTML = '';
+											}
+											
+											},
+
+			addNewTaskClickHandler: function(event){
+													let activeTd = document.querySelector('#calendar td.active');
+
+													if(!tasks[activeTd.dataset.key])
+													{
+														tasks[activeTd.dataset.key] = {};
+														tasks[activeTd.dataset.key][0] = [];
+														tasks[activeTd.dataset.key][0][0] = newTask.value;
+														tasks[activeTd.dataset.key][0][1] = 'notdone';
+													}
+													else
+													{
+														let taskNum = Object.keys(tasks[activeTd.dataset.key]).length;
+														tasks[activeTd.dataset.key][taskNum]=[];
+														tasks[activeTd.dataset.key][taskNum][0] = newTask.value;
+														tasks[activeTd.dataset.key][taskNum][1] = 'notdone';
+													}
+													
+													taskList.innerHTML = '';
+													this.fillTaskList(activeTd);
+												},
+			},
+		filters:{
+		},
+		computed:{
+		},
+	}); 	
+</script>
+</body>
+</html>
+	
+	
+	
+	
+												
+		
